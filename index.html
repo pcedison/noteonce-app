@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#F5F3EE" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1114" media="(prefers-color-scheme: dark)">
+<title>noteonce · 真機測試版</title>
+<style>
+:root{--spring:cubic-bezier(.32,.72,.28,1)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC","Noto Sans CJK TC","Microsoft JhengHei",system-ui,sans-serif;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;
+}
+button{font-family:inherit;cursor:pointer}
+input,textarea{font-family:inherit}
+#noteInput,#editTa{user-select:text;-webkit-user-select:text}
+body[data-theme="light"]{
+  --bg:#F5F3EE; --surface:#FFFFFF; --surface-2:#ECE9E1; --surface-3:#DDD9CD;
+  --text:#282C34; --text-2:#8D8B82; --sep:rgba(58,55,45,.13);
+  --accent:#177E71; --accent-ink:#FFFFFF; --accent-soft:rgba(23,126,113,.11);
+  --danger:#E5484D; --danger-soft:rgba(229,72,77,.12);
+  --shadow:0 1px 2px rgba(35,32,26,.05), 0 8px 24px rgba(35,32,26,.07);
+  --backdrop:rgba(30,28,24,.4);
+  --toast-bg:rgba(40,44,52,.93); --toast-text:#fff;
+}
+body[data-theme="dark"]{
+  --bg:#0F1114; --surface:#1B1E24; --surface-2:#262A31; --surface-3:#343943;
+  --text:#EDEEE9; --text-2:#9B9EA6; --sep:rgba(255,255,255,.09);
+  --accent:#3ECFB2; --accent-ink:#07251F; --accent-soft:rgba(62,207,178,.14);
+  --danger:#FF6369; --danger-soft:rgba(255,99,105,.15);
+  --shadow:0 1px 2px rgba(0,0,0,.35), 0 10px 30px rgba(0,0,0,.4);
+  --backdrop:rgba(0,0,0,.56);
+  --toast-bg:rgba(44,48,56,.96); --toast-text:#EDEEE9;
+}
+#screen{position:fixed;inset:0;background:var(--bg);color:var(--text);overflow:hidden;transition:background .3s}
+.app{position:absolute;inset:0}
+.hidden{display:none !important}
+/* ---------- 日視圖 ---------- */
+.day-view{position:absolute;inset:0;display:flex;flex-direction:column;padding-top:calc(env(safe-area-inset-top,0px) + 8px);transition:transform .38s var(--spring), opacity .34s ease}
+.app.zoom .day-view{transform:scale(.6);opacity:0;pointer-events:none}
+.day-head{padding:6px 18px 4px}
+.row1{display:flex;align-items:center;justify-content:space-between;min-height:38px;gap:8px}
+.row1 .spacer{flex:1}
+.year-chip{display:inline-flex;align-items:center;gap:5px;background:var(--surface-2);border:none;color:var(--text-2);font-size:14px;font-weight:600;padding:7px 12px;border-radius:11px;transition:.15s}
+.year-chip:active{transform:scale(.95)}
+.year-chip svg{width:9px;height:7px}
+.today-chip{background:var(--accent-soft);color:var(--accent);border:none;font-size:13px;font-weight:700;padding:8px 13px;border-radius:12px}
+.today-chip:active{transform:scale(.95)}
+.tbtn{width:36px;height:36px;border-radius:50%;border:none;background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;flex:none}
+.tbtn:active{transform:scale(.92)}
+.tbtn svg{width:17px;height:17px}
+body[data-theme="light"] .tbtn .ic-moon{display:block}
+body[data-theme="light"] .tbtn .ic-sun{display:none}
+body[data-theme="dark"] .tbtn .ic-moon{display:none}
+body[data-theme="dark"] .tbtn .ic-sun{display:block}
+.date-line{display:flex;align-items:baseline;gap:10px;background:none;border:none;padding:4px 0 0;color:var(--text);text-align:left}
+.date-line:active .d-big{opacity:.55}
+.d-big{font-size:30px;font-weight:800;letter-spacing:.4px}
+.d-week{font-size:15px;color:var(--text-2);font-weight:600}
+.date-line svg{width:11px;height:8px;color:var(--text-2);align-self:center}
+.d-meta{font-size:13px;color:var(--text-2);margin-top:4px}
+/* ---------- 記事清單 ---------- */
+.list{position:relative;flex:1;overflow-y:auto;padding:10px 16px calc(env(safe-area-inset-bottom,0px) + 150px);display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain;scrollbar-width:none}
+.list::-webkit-scrollbar{display:none}
+.note-card{position:relative;border-radius:16px;flex:none}
+.del-btn{position:absolute;top:0;bottom:0;right:0;width:82px;background:var(--danger);color:#fff;border:none;border-radius:16px;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.card-inner{position:relative;z-index:1;background:var(--surface);border-radius:16px;display:flex;gap:10px;align-items:center;padding:12px 16px 12px 12px;box-shadow:var(--shadow);transition:transform .28s var(--spring);touch-action:pan-y;min-height:54px}
+.note-card.drag-src .card-inner{opacity:.32;box-shadow:none;outline:1.5px dashed var(--text-2)}
+.note-card.drag-src .del-btn{visibility:hidden}
+.check{width:42px;height:42px;margin:-6px -4px -6px -6px;display:flex;align-items:center;justify-content:center;background:none;border:none;flex:none}
+.check .ring{width:25px;height:25px;border-radius:50%;border:2px solid var(--surface-3);display:flex;align-items:center;justify-content:center;transition:.2s var(--spring);color:var(--accent-ink)}
+.check svg{width:12px;height:12px;opacity:0;transform:scale(.4);transition:.2s var(--spring)}
+.note-card.done .check .ring{background:var(--accent);border-color:var(--accent)}
+.note-card.done .check svg{opacity:1;transform:scale(1)}
+.note-text{flex:1;font-size:16px;line-height:1.4;color:var(--text);padding:2px 0;transition:color .2s}
+.note-card.done .note-text{color:var(--text-2);text-decoration:line-through}
+.ghost{position:absolute;z-index:65;pointer-events:none;border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.3);opacity:.97;animation:lift .18s var(--spring)}
+@keyframes lift{from{transform:scale(.97);box-shadow:0 4px 10px rgba(0,0,0,.12)}to{transform:scale(1)}}
+.ghost .card-inner{transform:scale(1.03) rotate(1deg);transition:none}
+.empty{padding:54px 30px 20px;text-align:center;color:var(--text-2)}
+.empty .eicon{width:74px;height:74px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.empty b{display:block;font-size:15.5px;color:var(--text);font-weight:600;margin-bottom:6px}
+.empty p{margin:0;font-size:13px;line-height:1.6}
+.hint{margin:2px 16px 8px;background:var(--accent-soft);border-radius:12px;padding:9px 13px;font-size:12.5px;color:var(--accent);display:flex;gap:8px;align-items:center;flex:none}
+.hint svg{flex:none}
+/* ---------- 底部輸入列 / 拖放目標區 ---------- */
+.input-bar{position:absolute;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);display:flex;gap:10px;align-items:center;z-index:40;transition:transform .2s ease}
+#noteInput{flex:1;height:50px;border-radius:25px;border:1px solid var(--sep);background:var(--surface);color:var(--text);padding:0 18px;font-size:16px;outline:none;box-shadow:var(--shadow);transition:border .2s}
+#noteInput::placeholder{color:var(--text-2)}
+#noteInput:focus{border-color:var(--accent)}
+#addBtn{width:50px;height:50px;border-radius:50%;background:var(--accent);color:var(--accent-ink);border:none;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);flex:none;transition:transform .15s}
+#addBtn:active{transform:scale(.9)}
+.drop-zones{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;gap:8px;z-index:45;animation:zin .22s var(--spring)}
+@keyframes zin{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.zone{flex:1;height:62px;border:1.6px dashed var(--accent);border-radius:16px;display:flex;align-items:center;justify-content:center;gap:6px;color:var(--accent);font-size:12.5px;font-weight:700;background:var(--surface);opacity:.92;transition:.15s}
+.zone svg{width:11px;height:11px}
+.zone.hot{background:var(--accent-soft);border-style:solid;transform:scale(1.05);opacity:1}
+/* ---------- 縮放（日期輪播）視圖 ---------- */
+.zoom-view{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0;transform:scale(1.32);pointer-events:none;transition:transform .38s var(--spring), opacity .3s ease}
+.app.zoom .zoom-view{opacity:1;transform:scale(1);pointer-events:auto}
+.zoom-head{padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 6px;display:flex;justify-content:center;gap:8px}
+.zchip{background:var(--surface-2);border:none;color:var(--text);font-size:15.5px;font-weight:700;padding:9px 14px;border-radius:12px;display:inline-flex;gap:6px;align-items:center;transition:.15s}
+.zchip:active{transform:scale(.95)}
+.zchip svg{width:9px;height:7px;color:var(--text-2)}
+.carousel{position:relative;flex:1;overflow:hidden;touch-action:none;cursor:grab}
+.track{position:absolute;left:0;top:50%;display:flex;gap:18px;align-items:center;will-change:transform}
+.dcard{width:var(--cardw,232px);height:var(--cardh,446px);flex:none;border-radius:26px;background:var(--surface);box-shadow:var(--shadow);border:1px solid var(--sep);padding:20px 16px;display:flex;flex-direction:column;position:relative;transition:border-color .2s}
+.dcard.today{border:1.6px solid var(--accent)}
+.dc-badge{position:absolute;top:16px;right:14px;background:var(--accent);color:var(--accent-ink);font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:9px}
+.dc-week{font-size:13px;color:var(--text-2);font-weight:600}
+.dc-date{font-size:32px;font-weight:800;letter-spacing:.4px;margin-top:2px}
+.dc-year{font-size:12.5px;color:var(--text-2);margin-top:2px}
+.dc-count{margin-top:10px;font-size:12px;font-weight:700;color:var(--accent);background:var(--accent-soft);align-self:flex-start;padding:4px 9px;border-radius:9px}
+.dc-list{margin-top:10px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.dc-item{display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--text);white-space:nowrap}
+.dc-item i{overflow:hidden;text-overflow:ellipsis;font-style:normal}
+.dc-item .dot{width:8px;height:8px;border-radius:50%;border:1.6px solid var(--text-2);flex:none}
+.dc-item.done .dot{background:var(--accent);border-color:var(--accent)}
+.dc-item.done{color:var(--text-2);text-decoration:line-through}
+.dc-more{font-size:11.5px;color:var(--text-2);margin-top:4px}
+.dc-empty{margin-top:16px;font-size:12.5px;color:var(--text-2)}
+.zoom-foot{display:flex;justify-content:center;align-items:center;gap:12px;padding:8px 0 4px}
+.rnd{width:44px;height:44px;border-radius:50%;background:var(--surface-2);color:var(--text);border:none;display:flex;align-items:center;justify-content:center}
+.rnd:active{transform:scale(.92)}
+.rnd svg{width:14px;height:14px}
+#zTodayBtn{background:var(--accent-soft);color:var(--accent);font-weight:700;padding:0 20px;height:44px;border-radius:22px;border:none;font-size:15px}
+.zoom-hint{text-align:center;font-size:12px;color:var(--text-2);padding:4px 0 calc(env(safe-area-inset-bottom,0px) + 16px)}
+/* ---------- 底部面板（Sheet） ---------- */
+.backdrop{position:absolute;inset:0;background:var(--backdrop);z-index:55;opacity:0;transition:opacity .28s;pointer-events:none}
+.backdrop.show{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:26px 26px 0 0;padding:10px 18px calc(env(safe-area-inset-bottom,0px) + 22px);z-index:60;transform:translateY(105%);transition:transform .34s var(--spring);max-height:78%;display:flex;flex-direction:column;box-shadow:0 -8px 40px rgba(0,0,0,.18)}
+.sheet.open{transform:translateY(0)}
+.grabber{width:38px;height:5px;border-radius:3px;background:var(--surface-3);margin:2px auto 10px;flex:none}
+.sheet h3{font-size:16.5px;font-weight:700;text-align:center;margin:2px 0 2px;color:var(--text)}
+.sheet .sub{text-align:center;font-size:12.5px;color:var(--text-2);margin:2px 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sheet-scroll{overflow-y:auto;scrollbar-width:none;margin-top:6px;touch-action:pan-y}
+.sheet-scroll::-webkit-scrollbar{display:none}
+.ygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px 2px 6px}
+.ycell{padding:14px 0;border-radius:14px;background:var(--surface-2);border:none;font-size:16px;color:var(--text);font-weight:600;transition:.12s}
+.ycell:active{transform:scale(.95)}
+.ycell.now{box-shadow:inset 0 0 0 1.6px var(--accent)}
+.ycell.sel{background:var(--accent);color:var(--accent-ink)}
+.cal-head{display:flex;align-items:center;justify-content:space-between;padding:8px 2px 2px}
+.cal-title{font-size:16px;font-weight:700;color:var(--text)}
+.cal-nav{width:42px;height:42px;border-radius:13px;background:var(--surface-2);border:none;color:var(--text);display:flex;align-items:center;justify-content:center}
+.cal-nav svg{width:13px;height:13px}
+.wrow{display:grid;grid-template-columns:repeat(7,1fr);font-size:12px;color:var(--text-2);text-align:center;padding:8px 0 3px;font-weight:600}
+.dgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;padding-bottom:6px}
+.dcell{position:relative;aspect-ratio:1;border-radius:12px;border:none;background:none;font-size:15.5px;color:var(--text);display:flex;align-items:center;justify-content:center;transition:.12s}
+.dcell:active{transform:scale(.9)}
+.dcell.blank{pointer-events:none}
+.dcell.today{box-shadow:inset 0 0 0 1.6px var(--accent);color:var(--accent);font-weight:700}
+.dcell.sel{background:var(--accent);color:var(--accent-ink);font-weight:700;box-shadow:none}
+.dcell .nd{position:absolute;bottom:5px;left:50%;transform:translateX(-50%);width:4.5px;height:4.5px;border-radius:50%;background:var(--accent)}
+.dcell.sel .nd{background:var(--accent-ink)}
+.sheet-actions{display:flex;gap:10px;margin-top:12px}
+.act{flex:1;padding:13px 0;border-radius:14px;border:none;font-size:15px;font-weight:600;transition:.12s}
+.act:active{transform:scale(.97)}
+.act.soft{background:var(--accent-soft);color:var(--accent)}
+.act.danger{background:var(--danger-soft);color:var(--danger)}
+.act.primary{background:var(--accent);color:var(--accent-ink);font-size:16px;padding:14px 0;border-radius:15px;margin-top:10px}
+#editTa{width:100%;min-height:88px;background:var(--surface-2);border:none;border-radius:14px;padding:12px 14px;font-size:16px;line-height:1.5;color:var(--text);resize:none;margin-top:10px;outline:none}
+/* ---------- Toast ---------- */
+.toast{position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);transform:translate(-50%,14px);background:var(--toast-bg);color:var(--toast-text);font-size:13.5px;font-weight:600;padding:10px 17px;border-radius:20px;opacity:0;transition:.3s;z-index:70;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body data-theme="light">
+<div id="screen">
+  <div class="app" id="app">
+    <!-- 日視圖 -->
+    <div class="day-view" id="dayView">
+      <div id="dayPage" style="display:flex;flex-direction:column;flex:1;min-height:0">
+        <div class="day-head">
+          <div class="row1">
+            <button class="year-chip" id="yearChip" aria-label="編輯年份">
+              <span id="yearChipText">2026年</span>
+              <svg viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5L6 6l4.5-4.5"/></svg>
+            </button>
+            <span class="spacer"></span>
+            <button class="today-chip hidden" id="todayChip">回到今天</button>
+            <button class="tbtn" id="themeBtn" aria-label="切換深淺色">
+              <svg class="ic-moon" viewBox="0 0 16 16" fill="currentColor"><path d="M13.8 9.9A6.1 6.1 0 1 1 6.1 2.2a4.9 4.9 0 0 0 7.7 7.7z"/></svg>
+              <svg class="ic-sun" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3.2"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M12.8 3.2l-1.1 1.1M4.3 11.7l-1.1 1.1"/></svg>
+            </button>
+          </div>
+          <button class="date-line" id="dateChip" aria-label="編輯日期">
+            <span class="d-big" id="dBig">7月23日</span>
+            <span class="d-week" id="dWeek">星期四</span>
+            <svg viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5L6 6l4.5-4.5"/></svg>
+          </button>
+          <div class="d-meta" id="dayMeta"></div>
+        </div>
+        <div class="hint" id="dtHint">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.6 4.6L14 7l-4.4 1.4L8 13l-1.6-4.6L2 7l4.4-1.4z"/></svg>
+          雙擊空白處選日期・長按記事拖曳
+        </div>
+        <div class="list" id="list"></div>
+      </div>
+      <form class="input-bar" id="inputBar" action="#">
+        <input id="noteInput" placeholder="新增記事…" autocomplete="off" enterkeyhint="done">
+        <button id="addBtn" type="submit" aria-label="新增">
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M10 3.5v13M3.5 10h13"/></svg>
+        </button>
+      </form>
+      <div class="drop-zones hidden" id="dropZones">
+        <div class="zone" data-zone="prev">
+          <svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 1.5L1.5 6l5 4.5"/></svg>
+          前一天
+        </div>
+        <div class="zone" data-zone="pick">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.5" y="2.5" width="13" height="12" rx="2.5"/><path d="M1.5 6h13M5 1v3M11 1v3" stroke-linecap="round"/></svg>
+          選日期
+        </div>
+        <div class="zone" data-zone="next">
+          後一天
+          <svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5l5 4.5-5 4.5"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- 縮放選日視圖 -->
+    <div class="zoom-view" id="zoomView">
+      <div class="zoom-head">
+        <button class="zchip" id="zYear">
+          <span id="zYearText">2026年</span>
+          <svg viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5L6 6l4.5-4.5"/></svg>
+        </button>
+        <button class="zchip" id="zMonth">
+          <span id="zMonthText">7月</span>
+          <svg viewBox="0 0 12 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5L6 6l4.5-4.5"/></svg>
+        </button>
+      </div>
+      <div class="carousel" id="carousel">
+        <div class="track" id="track"></div>
+      </div>
+      <div class="zoom-foot">
+        <button class="rnd" id="zPrevBtn" aria-label="前一天"><svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 1.5L1.5 6l5 4.5"/></svg></button>
+        <button id="zTodayBtn">今天</button>
+        <button class="rnd" id="zNextBtn" aria-label="後一天"><svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5l5 4.5-5 4.5"/></svg></button>
+      </div>
+      <div class="zoom-hint">左右滑動換日期 · 點卡片開啟該日 · 雙擊空白處返回</div>
+    </div>
+  </div>
+
+  <div class="backdrop" id="backdrop"></div>
+  <div class="sheet" id="sheet"></div>
+  <div class="toast" id="toast"></div>
+</div>
+<script>
+'use strict';
+/* ============ 工具 ============ */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2, '0');
+const dkey = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const WEEK = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+const WD = ['日','一','二','三','四','五','六'];
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const sameDay = (a, b) => dkey(a) === dkey(b);
+const clampDate = (y, m, day) => new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate()));
+const fmtMD = d => (d.getMonth() + 1) + '月' + d.getDate() + '日';
+const fmtFull = d => d.getFullYear() + '年' + fmtMD(d);
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const SVG_TICK = '<svg viewBox="0 0 14 14"><path d="M2.5 7.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SVG_L = '<svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 1.5L1.5 6l5 4.5"/></svg>';
+const SVG_R = '<svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 1.5l5 4.5-5 4.5"/></svg>';
+
+/* ============ 狀態與種子資料 ============ */
+const today = new Date(); today.setHours(0, 0, 0, 0);
+let current = new Date(today);
+let store = {};
+let uid = 1;
+let inZoom = false;
+let zCurrent = new Date(today);
+let hintShown = false;
+let scale = 1; /* 真機版不縮放，固定 1 */
+const screenEl = document.getElementById('screen');
+
+const notesOf = d => store[dkey(d)] || (store[dkey(d)] = []);
+const peek = d => store[dkey(d)] || [];
+
+function seed(dateObj, texts, doneIdx) {
+  store[dkey(dateObj)] = texts.map((t, i) => ({ id: uid++, text: t, done: (doneIdx || []).includes(i) }));
+}
+seed(today, ['整理 noteonce 功能規格', '回覆廠商報價信', '晚上 7:00 健身'], [1]);
+seed(addDays(today, -1), ['繳房租', '買咖啡豆'], [0, 1]);
+seed(addDays(today, 1), ['牙醫預約 10:30', '幫小孩帶水壺'], []);
+seed(addDays(today, 3), ['媽媽生日・訂蛋糕'], []);
+seed(addDays(today, 14), ['出差：台北 → 高雄'], []);
+const lastMonth = new Date(today); lastMonth.setMonth(lastMonth.getMonth() - 1);
+seed(lastMonth, ['月結：整理發票與收據'], [0]);
+const lastYear = new Date(today); lastYear.setFullYear(lastYear.getFullYear() - 1);
+seed(lastYear, ['開始構想 noteonce 的第一版'], [0]);
+
+/* ============ 深淺色 ============ */
+function setTheme(t) {
+  document.body.dataset.theme = t;
+}
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) setTheme('dark');
+$('#themeBtn').addEventListener('click', () => {
+  setTheme(document.body.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+
+/* ============ 日視圖渲染 ============ */
+function cardHTML(n) {
+  return '<div class="note-card' + (n.done ? ' done' : '') + '" data-id="' + n.id + '">' +
+    '<button class="del-btn">刪除</button>' +
+    '<div class="card-inner">' +
+      '<button class="check" aria-label="完成"><span class="ring">' + SVG_TICK + '</span></button>' +
+      '<div class="note-text">' + esc(n.text) + '</div>' +
+    '</div></div>';
+}
+function renderDay(dir) {
+  $('#yearChipText').textContent = current.getFullYear() + '年';
+  $('#dBig').textContent = fmtMD(current);
+  $('#dWeek').textContent = WEEK[current.getDay()];
+  $('#todayChip').classList.toggle('hidden', sameDay(current, today));
+  const arr = peek(current);
+  const done = arr.filter(n => n.done).length;
+  $('#dayMeta').textContent = arr.length ? arr.length + ' 則記事 · 已完成 ' + done : ' ';
+  const list = $('#list');
+  if (!arr.length) {
+    list.innerHTML = '<div class="empty"><div class="eicon"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div><b>這一天還沒有記事</b><p>用下方輸入列新增第一則，<br>或雙擊空白處挑其他日子。</p></div>';
+  } else {
+    list.innerHTML = arr.map(cardHTML).join('');
+  }
+  if (dir) {
+    $('#dayPage').animate(
+      [{ opacity: .25, transform: 'translateX(' + (dir > 0 ? 30 : -30) + 'px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 280, easing: 'cubic-bezier(.32,.72,.28,1)' }
+    );
+  }
+}
+function gotoDate(d, animate) {
+  const dir = Math.sign(d - current);
+  current = new Date(d); current.setHours(0, 0, 0, 0);
+  renderDay(animate ? (dir || 1) : 0);
+}
+
+/* ============ 記事操作 ============ */
+function findNote(id) {
+  for (const k in store) {
+    const i = store[k].findIndex(n => n.id === id);
+    if (i > -1) return { k, i, note: store[k][i] };
+  }
+  return null;
+}
+function addNote() {
+  const inp = $('#noteInput');
+  const t = inp.value.trim();
+  if (!t) return;
+  notesOf(current).push({ id: uid++, text: t, done: false });
+  inp.value = '';
+  renderDay(0);
+  const list = $('#list');
+  list.scrollTop = list.scrollHeight;
+  const last = list.querySelector('.note-card:last-child .card-inner');
+  if (last) last.animate([{ transform: 'scale(.92)', opacity: .4 }, { transform: 'none', opacity: 1 }], { duration: 240, easing: 'ease-out' });
+}
+function deleteNote(id) {
+  const f = findNote(id); if (!f) return;
+  store[f.k].splice(f.i, 1);
+  renderDay(0);
+  toast('已刪除');
+}
+function moveNote(id, target) {
+  const f = findNote(id); if (!f) return;
+  if (f.k === dkey(target)) { renderDay(0); return; }
+  store[f.k].splice(f.i, 1);
+  notesOf(target).push(f.note);
+  renderDay(0);
+  toast('已移到 ' + (target.getFullYear() === today.getFullYear() ? fmtMD(target) : fmtFull(target)));
+}
+
+/* ============ Toast ============ */
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+/* ============ 底部面板 ============ */
+const sheet = $('#sheet'), backdrop = $('#backdrop');
+let sheetOpen = false;
+let pendingMove = null;
+function openSheet(html) {
+  sheet.innerHTML = '<div class="grabber"></div>' + html;
+  backdrop.classList.add('show');
+  requestAnimationFrame(() => sheet.classList.add('open'));
+  sheetOpen = true;
+}
+function closeSheet() {
+  sheet.classList.remove('open');
+  backdrop.classList.remove('show');
+  sheetOpen = false;
+  pendingMove = null;
+}
+backdrop.addEventListener('click', closeSheet);
+(function sheetDrag() {
+  let sy = null, cur = 0;
+  sheet.addEventListener('pointerdown', e => {
+    if (e.target.closest('button,textarea,input,.dgrid,.ygrid')) return;
+    sy = e.clientY; cur = 0;
+    try { sheet.setPointerCapture(e.pointerId); } catch (_) {}
+    sheet.style.transition = 'none';
+  });
+  sheet.addEventListener('pointermove', e => {
+    if (sy === null) return;
+    cur = Math.max(0, (e.clientY - sy) / scale);
+    sheet.style.transform = 'translateY(' + cur + 'px)';
+  });
+  const up = () => {
+    if (sy === null) return;
+    sheet.style.transition = '';
+    sheet.style.transform = '';
+    if (cur > 80) closeSheet();
+    sy = null;
+  };
+  sheet.addEventListener('pointerup', up);
+  sheet.addEventListener('pointercancel', up);
+})();
+
+function applyDate(d) {
+  if (inZoom) { zCurrent = new Date(d); renderCarousel(); }
+  else gotoDate(d, true);
+}
+
+/* ----- 年份面板 ----- */
+function openYearSheet() {
+  const base = inZoom ? zCurrent : current;
+  const y0 = today.getFullYear();
+  let cells = '';
+  for (let y = y0 - 8; y <= y0 + 4; y++) {
+    cells += '<button class="ycell' + (y === base.getFullYear() ? ' sel' : '') + (y === y0 ? ' now' : '') + '" data-y="' + y + '">' + y + '</button>';
+  }
+  openSheet('<h3>選擇年份</h3><p class="sub">點一下直接跳到該年</p><div class="sheet-scroll"><div class="ygrid">' + cells + '</div></div>');
+  sheet.querySelector('.ygrid').addEventListener('click', e => {
+    const b = e.target.closest('.ycell'); if (!b) return;
+    applyDate(clampDate(+b.dataset.y, base.getMonth(), base.getDate()));
+    closeSheet();
+  });
+  const sc = sheet.querySelector('.sheet-scroll'), sel = sheet.querySelector('.ycell.sel');
+  if (sc && sel) sc.scrollTop = Math.max(0, sel.offsetTop - sc.clientHeight / 2);
+}
+
+/* ----- 日期（月曆）面板 ----- */
+let calY, calM, calMode;
+function openDateSheet(mode, base) {
+  calMode = mode || 'goto';
+  const b = base || (inZoom ? zCurrent : current);
+  calY = b.getFullYear(); calM = b.getMonth();
+  const subtitle = calMode === 'move' && pendingMove ? '移動「' + esc(pendingMove.text) + '」到…' : '點一下日期直接跳轉，點標題可換年份';
+  openSheet(
+    '<h3>' + (calMode === 'move' ? '移到指定日期' : '選擇日期') + '</h3><p class="sub">' + subtitle + '</p>' +
+    '<div class="cal-head">' +
+      '<button class="cal-nav" id="calPrev" aria-label="上個月">' + SVG_L + '</button>' +
+      '<button class="cal-title" id="calTitle" style="background:none;border:none;padding:8px 10px"></button>' +
+      '<button class="cal-nav" id="calNext" aria-label="下個月">' + SVG_R + '</button>' +
+    '</div>' +
+    '<div class="wrow">' + WD.map(w => '<span>' + w + '</span>').join('') + '</div>' +
+    '<div class="sheet-scroll"><div class="dgrid" id="dgrid"></div></div>'
+  );
+  $('#calPrev').addEventListener('click', () => { calM--; if (calM < 0) { calM = 11; calY--; } renderCal(); });
+  $('#calNext').addEventListener('click', () => { calM++; if (calM > 11) { calM = 0; calY++; } renderCal(); });
+  $('#calTitle').addEventListener('click', () => {
+    const keep = pendingMove; closeSheet(); pendingMove = keep;
+    openYearSheet();
+  });
+  renderCal();
+}
+function renderCal() {
+  $('#calTitle').textContent = calY + '年' + (calM + 1) + '月';
+  const days = new Date(calY, calM + 1, 0).getDate();
+  const lead = new Date(calY, calM, 1).getDay();
+  const selBase = inZoom ? zCurrent : current;
+  let html = '';
+  for (let i = 0; i < lead; i++) html += '<span class="dcell blank"></span>';
+  for (let d = 1; d <= days; d++) {
+    const dt = new Date(calY, calM, d);
+    const cls = 'dcell' + (sameDay(dt, today) ? ' today' : '') + (calMode === 'goto' && sameDay(dt, selBase) ? ' sel' : '');
+    html += '<button class="' + cls + '" data-d="' + d + '">' + d + (peek(dt).length ? '<span class="nd"></span>' : '') + '</button>';
+  }
+  const g = $('#dgrid');
+  g.innerHTML = html;
+  g.onclick = e => {
+    const b = e.target.closest('.dcell'); if (!b || b.classList.contains('blank')) return;
+    const dt = new Date(calY, calM, +b.dataset.d);
+    if (calMode === 'move' && pendingMove) moveNote(pendingMove.id, dt);
+    else applyDate(dt);
+    closeSheet();
+  };
+}
+
+/* ----- 編輯記事面板 ----- */
+function openEditSheet(id) {
+  const f = findNote(id); if (!f) return;
+  openSheet(
+    '<h3>編輯記事</h3>' +
+    '<textarea id="editTa"></textarea>' +
+    '<div class="sheet-actions">' +
+      '<button class="act soft" id="editMove">移到其他日期</button>' +
+      '<button class="act danger" id="editDel">刪除</button>' +
+    '</div>' +
+    '<button class="act primary" id="editSave">儲存</button>'
+  );
+  const ta = $('#editTa'); ta.value = f.note.text;
+  $('#editSave').addEventListener('click', () => {
+    const v = ta.value.trim();
+    if (v) { f.note.text = v; renderDay(0); toast('已更新'); }
+    closeSheet();
+  });
+  $('#editDel').addEventListener('click', () => { closeSheet(); deleteNote(id); });
+  $('#editMove').addEventListener('click', () => { pendingMove = f.note; openDateSheet('move'); });
+}
+
+/* ============ 雙擊偵測 ============ */
+let lastTap = { t: 0, x: 0, y: 0 };
+let lastTapCall = 0;
+function tapCheck(e, cb) {
+  const t = performance.now();
+  if (t - lastTapCall < 60) return;
+  lastTapCall = t;
+  if (t - lastTap.t < 330 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 36) {
+    lastTap.t = 0; cb();
+  } else {
+    lastTap = { t, x: e.clientX, y: e.clientY };
+  }
+}
+$('#dayView').addEventListener('pointerup', e => {
+  if (dragCtx || (press && press.mode)) return;
+  if (e.target.closest('button,input,.note-card,.drop-zones')) return;
+  tapCheck(e, enterZoom);
+});
+$('#zoomView').addEventListener('pointerup', e => {
+  if (carMoved) return;
+  if (e.target.closest('button,.dcard')) return;
+  tapCheck(e, () => exitZoom(zCurrent));
+});
+$('#dayView').addEventListener('dblclick', e => {
+  if (dragCtx || (press && press.mode)) return;
+  if (e.target.closest('button,input,.note-card,.drop-zones')) return;
+  enterZoom();
+});
+$('#zoomView').addEventListener('dblclick', e => {
+  if (carMoved) return;
+  if (e.target.closest('button,.dcard')) return;
+  exitZoom(zCurrent);
+});
+
+/* ============ 縮放視圖（日期輪播） ============ */
+let swallowClickUntil = 0;
+document.getElementById('app').addEventListener('click', e => {
+  if (performance.now() < swallowClickUntil) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+function enterZoom() {
+  if (inZoom || sheetOpen) return;
+  swallowClickUntil = performance.now() + 350;
+  inZoom = true;
+  zCurrent = new Date(current);
+  renderCarousel();
+  $('#app').classList.add('zoom');
+  if (!hintShown) { hintShown = true; $('#dtHint').classList.add('hidden'); }
+}
+function exitZoom(d) {
+  if (!inZoom) return;
+  swallowClickUntil = performance.now() + 350;
+  inZoom = false;
+  $('#app').classList.remove('zoom');
+  gotoDate(d, !sameDay(d, current));
+}
+
+const CARD_W = Math.max(200, Math.min(250, Math.round(window.innerWidth * 0.6)));
+const CARD_H = Math.max(360, Math.min(450, Math.round(window.innerHeight * 0.55)));
+document.documentElement.style.setProperty('--cardw', CARD_W + 'px');
+document.documentElement.style.setProperty('--cardh', CARD_H + 'px');
+const GAP = 18, STEP = CARD_W + GAP, RANGE = 3;
+const track = $('#track');
+let carDX = 0, carMoved = false, carAnim = false;
+const baseX = () => (screenEl.clientWidth - CARD_W) / 2 - RANGE * STEP;
+
+function dcardHTML(d, off) {
+  const arr = peek(d);
+  const isToday = sameDay(d, today);
+  let inner = '<div class="dc-week">' + WEEK[d.getDay()] + '</div>' +
+    '<div class="dc-date">' + fmtMD(d) + '</div>' +
+    '<div class="dc-year">' + d.getFullYear() + '年</div>' +
+    (isToday ? '<div class="dc-badge">今天</div>' : '');
+  if (arr.length) {
+    inner += '<div class="dc-count">' + arr.length + ' 則記事</div><div class="dc-list">';
+    arr.slice(0, 6).forEach(n => {
+      inner += '<div class="dc-item' + (n.done ? ' done' : '') + '"><span class="dot"></span><i>' + esc(n.text) + '</i></div>';
+    });
+    inner += '</div>';
+    if (arr.length > 6) inner += '<div class="dc-more">還有 ' + (arr.length - 6) + ' 則…</div>';
+  } else {
+    inner += '<div class="dc-empty">沒有記事</div>';
+  }
+  return '<div class="dcard' + (isToday ? ' today' : '') + '" data-off="' + off + '">' + inner + '</div>';
+}
+function renderCarousel() {
+  let html = '';
+  for (let i = -RANGE; i <= RANGE; i++) html += dcardHTML(addDays(zCurrent, i), i);
+  track.innerHTML = html;
+  $('#zYearText').textContent = zCurrent.getFullYear() + '年';
+  $('#zMonthText').textContent = (zCurrent.getMonth() + 1) + '月';
+  carDX = 0;
+  track.style.transition = 'none';
+  updateTrack();
+}
+function updateTrack() {
+  track.style.transform = 'translate(' + (baseX() + carDX) + 'px, -50%)';
+  const cards = track.children;
+  for (let i = 0; i < cards.length; i++) {
+    const a = Math.abs((i - RANGE) + carDX / STEP);
+    cards[i].style.transform = 'scale(' + (1 - Math.min(.16, a * .08)) + ')';
+    cards[i].style.opacity = String(1 - Math.min(.55, a * .26));
+  }
+}
+function setCarTransition(on) {
+  track.style.transition = on ? 'transform .3s cubic-bezier(.32,.72,.28,1)' : 'none';
+  const v = on ? 'transform .3s cubic-bezier(.32,.72,.28,1), opacity .3s' : 'none';
+  for (const c of track.children) c.style.transition = v;
+}
+function settleTo(n) {
+  carAnim = true;
+  setCarTransition(true);
+  carDX = -n * STEP;
+  updateTrack();
+  setTimeout(() => {
+    zCurrent = addDays(zCurrent, n);
+    renderCarousel();
+    carAnim = false;
+  }, 310);
+}
+function shiftCarousel(n) {
+  if (carAnim || !inZoom || !n) return;
+  settleTo(Math.max(-RANGE, Math.min(RANGE, n)));
+}
+(function carouselGestures() {
+  const car = $('#carousel');
+  let sx = null, sdx = 0, lastX = 0, lastT = 0, vel = 0;
+  car.addEventListener('pointerdown', e => {
+    if (carAnim || e.target.closest('button')) return;
+    sx = e.clientX; sdx = carDX; carMoved = false;
+    lastX = e.clientX; lastT = performance.now(); vel = 0;
+    try { car.setPointerCapture(e.pointerId); } catch (_) {}
+    setCarTransition(false);
+  });
+  car.addEventListener('pointermove', e => {
+    if (sx === null) return;
+    const dx = (e.clientX - sx) / scale;
+    if (Math.abs(dx) > 6) carMoved = true;
+    carDX = sdx + dx;
+    const now = performance.now();
+    if (now - lastT > 0) vel = (e.clientX - lastX) / (now - lastT);
+    lastX = e.clientX; lastT = now;
+    updateTrack();
+  });
+  const up = () => {
+    if (sx === null) return;
+    sx = null;
+    let n = Math.round(-carDX / STEP);
+    if (n === 0 && Math.abs(vel) > .45) n = vel < 0 ? 1 : -1;
+    settleTo(Math.max(-RANGE, Math.min(RANGE, n)));
+  };
+  car.addEventListener('pointerup', up);
+  car.addEventListener('pointercancel', up);
+  track.addEventListener('click', e => {
+    if (carMoved) return;
+    const c = e.target.closest('.dcard'); if (!c) return;
+    exitZoom(addDays(zCurrent, +c.dataset.off));
+  });
+})();
+
+/* ============ 記事手勢：勾選 / 左滑刪除 / 長按拖曳 ============ */
+let dragCtx = null, press = null, suppressClick = false, openSwipe = null;
+const listEl = $('#list');
+
+function closeOpenSwipe() {
+  if (!openSwipe) return;
+  if (openSwipe.inner.isConnected) {
+    openSwipe.inner.style.transform = '';
+    openSwipe.card.classList.remove('sopen');
+  }
+  openSwipe = null;
+}
+
+listEl.addEventListener('click', e => {
+  const card = e.target.closest('.note-card'); if (!card) return;
+  const id = +card.dataset.id;
+  if (e.target.closest('.check')) {
+    const f = findNote(id); if (!f) return;
+    f.note.done = !f.note.done;
+    card.classList.toggle('done', f.note.done);
+    const arr = peek(current);
+    $('#dayMeta').textContent = arr.length + ' 則記事 · 已完成 ' + arr.filter(n => n.done).length;
+    return;
+  }
+  if (e.target.closest('.del-btn')) { deleteNote(id); return; }
+  if (openSwipe && openSwipe.card === card) { closeOpenSwipe(); return; }
+  if (e.target.closest('.note-text') && !suppressClick && !openSwipe) openEditSheet(id);
+});
+
+listEl.addEventListener('pointerdown', e => {
+  if (dragCtx) return;
+  if (e.target.closest('.del-btn')) return;
+  const inner = e.target.closest('.card-inner');
+  const card = e.target.closest('.note-card');
+  if (!inner || !card) { closeOpenSwipe(); return; }
+  if (e.target.closest('.check')) { closeOpenSwipe(); return; }
+  if (openSwipe && openSwipe.card !== card) closeOpenSwipe();
+  suppressClick = false;
+  press = {
+    card, inner, x: e.clientX, y: e.clientY, mode: null, pid: e.pointerId, cur: null,
+    base: card.classList.contains('sopen') ? -82 : 0,
+    timer: setTimeout(() => {
+      if (press && !press.mode) { const p = press; press = null; startDrag(p.card, p.x, p.y, p.pid); }
+    }, 280)
+  };
+});
+window.addEventListener('pointermove', e => {
+  if (dragCtx) { moveDrag(e); return; }
+  if (!press || e.pointerId !== press.pid) return;
+  const dx = (e.clientX - press.x) / scale, dy = (e.clientY - press.y) / scale;
+  if (!press.mode) {
+    if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) + 3) {
+      press.mode = 'swipe';
+      clearTimeout(press.timer);
+      try { press.inner.setPointerCapture(press.pid); } catch (_) {}
+      press.inner.style.transition = 'none';
+    } else if (Math.abs(dy) > 12) {
+      clearTimeout(press.timer); press = null; return;
+    } else return;
+  }
+  const t = Math.max(-96, Math.min(0, press.base + dx));
+  press.inner.style.transform = 'translateX(' + t + 'px)';
+  press.cur = t;
+  if (Math.abs(dx) > 4) suppressClick = true;
+});
+window.addEventListener('pointerup', e => {
+  if (dragCtx) { endDrag(e, false); return; }
+  if (!press || e.pointerId !== press.pid) return;
+  clearTimeout(press.timer);
+  if (press.mode === 'swipe') {
+    press.inner.style.transition = '';
+    const open = (press.cur === null ? press.base : press.cur) < -44;
+    press.inner.style.transform = open ? 'translateX(-82px)' : '';
+    press.card.classList.toggle('sopen', open);
+    openSwipe = open ? { card: press.card, inner: press.inner } : null;
+  }
+  press = null;
+});
+window.addEventListener('pointercancel', () => {
+  if (dragCtx) { endDrag(null, true); return; }
+  if (press) {
+    clearTimeout(press.timer);
+    if (press.mode === 'swipe') {
+      press.inner.style.transition = '';
+      press.inner.style.transform = press.base ? 'translateX(-82px)' : '';
+    }
+    press = null;
+  }
+});
+
+/* ----- 拖曳（排序＋跨日期） ----- */
+function startDrag(card, cx, cy, pid) {
+  if (sheetOpen || inZoom || dragCtx) return;
+  closeOpenSwipe();
+  const id = +card.dataset.id;
+  if (!findNote(id)) return;
+  const r = card.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = 'ghost';
+  ghost.style.width = (r.width / scale) + 'px';
+  ghost.innerHTML = card.querySelector('.card-inner').outerHTML;
+  screenEl.appendChild(ghost);
+  card.classList.add('drag-src');
+  $('#inputBar').classList.add('hidden');
+  $('#dropZones').classList.remove('hidden');
+  dragCtx = { id, card, ghost, offX: (cx - r.left) / scale, offY: (cy - r.top) / scale, zone: null, moved: false, sx: cx, sy: cy };
+  try { card.setPointerCapture(pid); } catch (_) {}
+  positionGhost(cx, cy);
+  if (navigator.vibrate) navigator.vibrate(8);
+  suppressClick = true;
+}
+function positionGhost(cx, cy) {
+  const sr = screenEl.getBoundingClientRect();
+  dragCtx.ghost.style.left = ((cx - sr.left) / scale - dragCtx.offX) + 'px';
+  dragCtx.ghost.style.top = ((cy - sr.top) / scale - dragCtx.offY) + 'px';
+}
+function moveDrag(e) {
+  positionGhost(e.clientX, e.clientY);
+  if (Math.hypot(e.clientX - dragCtx.sx, e.clientY - dragCtx.sy) > 5) dragCtx.moved = true;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const zone = el && el.closest ? el.closest('.zone') : null;
+  if (dragCtx.zone !== zone) {
+    document.querySelectorAll('.zone').forEach(z => z.classList.remove('hot'));
+    if (zone) zone.classList.add('hot');
+    dragCtx.zone = zone;
+  }
+  if (!zone) {
+    const over = el && el.closest ? el.closest('.note-card') : null;
+    if (over && over !== dragCtx.card && over.parentElement === listEl) {
+      const rr = over.getBoundingClientRect();
+      if (e.clientY < rr.top + rr.height / 2) listEl.insertBefore(dragCtx.card, over);
+      else listEl.insertBefore(dragCtx.card, over.nextSibling);
+    }
+    const lr = listEl.getBoundingClientRect();
+    if (e.clientY < lr.top + 46) listEl.scrollTop -= 7;
+    else if (e.clientY > lr.bottom - 46) listEl.scrollTop += 7;
+  }
+}
+function endDrag(e, cancelled) {
+  const ctx = dragCtx; dragCtx = null;
+  if (!ctx) return;
+  document.querySelectorAll('.zone').forEach(z => z.classList.remove('hot'));
+  ctx.ghost.remove();
+  ctx.card.classList.remove('drag-src');
+  $('#dropZones').classList.add('hidden');
+  $('#inputBar').classList.remove('hidden');
+  if (cancelled) { renderDay(0); return; }
+  const zoneName = ctx.zone ? ctx.zone.dataset.zone : null;
+  if (zoneName === 'prev') moveNote(ctx.id, addDays(current, -1));
+  else if (zoneName === 'next') moveNote(ctx.id, addDays(current, 1));
+  else if (zoneName === 'pick') {
+    const f = findNote(ctx.id);
+    if (f) { pendingMove = f.note; openDateSheet('move', current); }
+    else renderDay(0);
+  } else {
+    const order = [...listEl.querySelectorAll('.note-card')].map(c => +c.dataset.id);
+    const k = dkey(current);
+    const arr = store[k] || [];
+    store[k] = order.map(i => arr.find(n => n.id === i)).filter(Boolean);
+    if (ctx.moved && order.length > 1) toast('已重新排序');
+    renderDay(0);
+  }
+}
+
+/* ============ 控制項綁定 ============ */
+$('#yearChip').addEventListener('click', openYearSheet);
+$('#dateChip').addEventListener('click', () => openDateSheet('goto'));
+$('#todayChip').addEventListener('click', () => gotoDate(today, true));
+$('#inputBar').addEventListener('submit', e => { e.preventDefault(); addNote(); });
+$('#zYear').addEventListener('click', openYearSheet);
+$('#zMonth').addEventListener('click', () => openDateSheet('goto'));
+$('#zTodayBtn').addEventListener('click', () => { zCurrent = new Date(today); renderCarousel(); });
+$('#zPrevBtn').addEventListener('click', () => shiftCarousel(-1));
+$('#zNextBtn').addEventListener('click', () => shiftCarousel(1));
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if (sheetOpen) closeSheet(); else if (inZoom) exitZoom(zCurrent); }
+  else if (inZoom && !sheetOpen && e.key === 'ArrowLeft') shiftCarousel(-1);
+  else if (inZoom && !sheetOpen && e.key === 'ArrowRight') shiftCarousel(1);
+});
+screenEl.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('touchmove', e => { if (dragCtx) e.preventDefault(); }, { passive: false });
+
+/* ============ 鍵盤避讓（iOS 軟鍵盤） ============ */
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const adjust = () => {
+    const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    $('#inputBar').style.transform = covered > 40 ? 'translateY(' + (-(covered - 6)) + 'px)' : '';
+  };
+  vv.addEventListener('resize', adjust);
+  vv.addEventListener('scroll', adjust);
+}
+window.addEventListener('resize', () => { if (inZoom) updateTrack(); });
+
+/* ============ 測試掛勾與初始化 ============ */
+window.__proto = {
+  enterZoom, exitZoom, openYearSheet, openDateSheet, openEditSheet, shiftCarousel, closeSheet, setTheme,
+  addNote: t => { notesOf(current).push({ id: uid++, text: t, done: false }); renderDay(0); },
+  gotoOffset: n => gotoDate(addDays(today, n), false),
+  state: () => ({ current: dkey(current), inZoom: inZoom, sheetOpen: sheetOpen, count: peek(current).length })
+};
+renderDay(0);
+</script>
+</body>
+</html>
